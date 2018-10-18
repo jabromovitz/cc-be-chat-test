@@ -47,6 +47,15 @@ $(function () {
             
             myID = json.uniqueID;
             input.removeAttr('disabled').focus();
+        } else if (json.type === 'stats') {
+
+             input.removeAttr('disabled');
+            content.prepend('<p>' + json.data + '</p>');
+
+        } else if (json.type === 'popular') {
+
+             input.removeAttr('disabled');
+             content.prepend(content.prepend('<p>' + json.data + '</p>'));
         }
     };
 
@@ -60,13 +69,13 @@ $(function () {
 
             connection.send(JSON.stringify({id: myID, msg: msg}));
             $(this).val('');
-            input.attr('disabled', 'disabled');
+            //input.attr('disabled', 'disabled');
 
             // we know that the first message sent from a user their name
             if (myName === false) {
                 myName = msg;
                 status.text(myName + ': ');
-                input.removeAttr('disabled').focus();
+                //input.removeAttr('disabled').focus();
             }
         }
     });

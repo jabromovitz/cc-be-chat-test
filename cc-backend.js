@@ -7,20 +7,12 @@ var wsPort = 8080;
 var ws = require('ws').Server;
 var http = require('http');
 var hash = require('object-hash');
+var features = require('./features');
 
-
-var chatHistory = [ ];
+var chatHistory = [];
 var clients = {};
 const CHAT_HISTORY_SIZE = 50;
 var clientId = 0;
-
-/**
- * Helper function for escaping input strings
- */
-function htmlEntities(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-                      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 //HTTP
 var server = http.createServer(function(request, response) {
@@ -35,8 +27,8 @@ server.listen(wsPort, function() {
 var wsServer = new ws({server : server});
 
 wsServer.on('connection', function(ws, req) {
-	
-	clients[clientId] = {socket: ws, name: false};
+
+	clients[clientId] = {socket: ws, name: false, signontime: (new Date()).getTime()};
 	var json = JSON.stringify({type:'id', uniqueID: clientId});
 	ws.send(json);  //unique id
 	ws.onclose = (function (clientId) {var id = clientId; return function() {delete clients[clientId];}}) (clientId);
@@ -58,22 +50,53 @@ wsServer.on('connection', function(ws, req) {
 
 		} else {
 
-		    var obj = {
-		        time: (new Date()).getTime(),
-		        text: json.msg,
-		        author: clients[json.id].name,
-		    };
+			if (json.msg[0] == '/') {
 
-		    // Resize 
-		    chatHistory.push(obj);
-		    chatHistory = chatHistory.slice(-CHAT_HISTORY_SIZE);
+				//Command 
+				var commandWords = json.msg.split(" ");
+				var cmd = commandWords[0].substring(1,commandWords[0].length);
+				var operator = commandWords.length > 1 ? commandWords[1].trim() : "";
 
-		    // Broadcast to connected clients
-		    var json = JSON.stringify({ type:'message', data:obj });
-		   	for (var client in clients) {
+				//popular
+				if (cmd === 'popular') {
+					
+					clients[json.id].socket.send(JSON.stringify({ type:'popular', data: features.popular()}));
+				} else if (cmd === 'stats') {
 
-		   		clients[client].socket.send(json);
-		   	}
+					// find user
+					for (var user in clients) {
+						if (clients[user].name === operator) {
+							clients[json.id].socket.send(JSON.stringify({ type:'stats', data:features.clientStats(clients[user].signontime)}));
+							break;
+						}
+					}
+				}
+
+			} else {
+
+				// Regular Message
+			    var obj = {
+			        time: (new Date()).getTime(),
+			        text: features.badWordFilter(json.msg),
+			        author: clients[json.id].name,
+			    };
+
+			    //Log word usage
+			    for(var word of json.msg.split(" ")) {
+			    	features.logWord(word);
+			    }
+
+			    // Resize 
+			    chatHistory.push(obj);
+			    chatHistory = chatHistory.slice(-CHAT_HISTORY_SIZE);
+
+			    // Broadcast to connected clients
+			    var json = JSON.stringify({ type:'message', data:obj });
+			   	for (var client in clients) {
+
+			   		clients[client].socket.send(json);
+			   	}
+			}
 	   }
 	});
 });
